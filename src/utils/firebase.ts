@@ -63,6 +63,22 @@ export interface FirestoreErrorInfo {
   };
 }
 
+// Utility to recursively strip undefined properties prior to sending payloads to Firestore
+export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const sanitized: Record<string, any> = {};
+  Object.keys(obj).forEach(key => {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        sanitized[key] = sanitizeForFirestore(val);
+      } else {
+        sanitized[key] = val;
+      }
+    }
+  });
+  return sanitized;
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -116,31 +132,31 @@ export async function seedInitialFirestoreData() {
     const batch = writeBatch(db);
 
     // Settings
-    batch.set(doc(db, 'settings', 'main'), { ...initialSettings, isSampleDataCleared: false });
+    batch.set(doc(db, 'settings', 'main'), sanitizeForFirestore({ ...initialSettings, isSampleDataCleared: false }));
 
     // Students
     initialStudents.forEach(s => {
-      batch.set(doc(db, 'students', s.id), s);
+      batch.set(doc(db, 'students', s.id), sanitizeForFirestore(s));
     });
 
     // Classes
     initialClasses.forEach(c => {
-      batch.set(doc(db, 'classes', c.id), c);
+      batch.set(doc(db, 'classes', c.id), sanitizeForFirestore(c));
     });
 
     // Payments
     initialPayments.forEach(p => {
-      batch.set(doc(db, 'payments', p.id), p);
+      batch.set(doc(db, 'payments', p.id), sanitizeForFirestore(p));
     });
 
     // Attendance
     initialAttendance.forEach(a => {
-      batch.set(doc(db, 'attendance', a.id), a);
+      batch.set(doc(db, 'attendance', a.id), sanitizeForFirestore(a));
     });
 
     // Grades
     initialGrades.forEach(g => {
-      batch.set(doc(db, 'grades', g.id), g);
+      batch.set(doc(db, 'grades', g.id), sanitizeForFirestore(g));
     });
 
     await batch.commit();
@@ -150,7 +166,7 @@ export async function seedInitialFirestoreData() {
   }
 }
 
-// Clear all sample data completely from Firestore
+// Clear all sample data completely from Firestore (triggered on demand by user)
 export async function clearAllFirestoreData() {
   try {
     console.log('Clearing all sample data from Firestore...');
@@ -166,10 +182,10 @@ export async function clearAllFirestoreData() {
     }
 
     // Keep center settings structure but mark as sample data cleared
-    await setDoc(doc(db, 'settings', 'main'), {
+    await setDoc(doc(db, 'settings', 'main'), sanitizeForFirestore({
       ...initialSettings,
       isSampleDataCleared: true
-    });
+    }));
 
     // Also clear localStorage
     localStorage.removeItem('tuition_center_app_state');
@@ -179,9 +195,6 @@ export async function clearAllFirestoreData() {
     console.error('Error clearing Firestore sample data:', err);
   }
 }
-
-// Execute initial wipe right away as requested by user
-clearAllFirestoreData();
 
 // Real-time listener subscriber across all 6 collections
 export function subscribeToRealtimeAppState(
@@ -261,7 +274,8 @@ export function subscribeToRealtimeAppState(
 // Write helper functions for individual entities
 export async function syncStudentToFirestore(student: Student) {
   try {
-    await setDoc(doc(db, 'students', student.id), student);
+    const sanitized = sanitizeForFirestore(student);
+    await setDoc(doc(db, 'students', student.id), sanitized);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `students/${student.id}`);
   }
@@ -277,7 +291,8 @@ export async function removeStudentFromFirestore(studentId: string) {
 
 export async function syncClassToFirestore(classSession: ClassSession) {
   try {
-    await setDoc(doc(db, 'classes', classSession.id), classSession);
+    const sanitized = sanitizeForFirestore(classSession);
+    await setDoc(doc(db, 'classes', classSession.id), sanitized);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `classes/${classSession.id}`);
   }
@@ -293,7 +308,8 @@ export async function removeClassFromFirestore(classId: string) {
 
 export async function syncPaymentToFirestore(payment: PaymentRecord) {
   try {
-    await setDoc(doc(db, 'payments', payment.id), payment);
+    const sanitized = sanitizeForFirestore(payment);
+    await setDoc(doc(db, 'payments', payment.id), sanitized);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `payments/${payment.id}`);
   }
@@ -311,7 +327,7 @@ export async function syncAttendanceListToFirestore(attendanceRecords: Attendanc
   try {
     const batch = writeBatch(db);
     attendanceRecords.forEach(record => {
-      batch.set(doc(db, 'attendance', record.id), record);
+      batch.set(doc(db, 'attendance', record.id), sanitizeForFirestore(record));
     });
     await batch.commit();
   } catch (err) {
@@ -321,7 +337,8 @@ export async function syncAttendanceListToFirestore(attendanceRecords: Attendanc
 
 export async function syncGradeToFirestore(grade: GradeRecord) {
   try {
-    await setDoc(doc(db, 'grades', grade.id), grade);
+    const sanitized = sanitizeForFirestore(grade);
+    await setDoc(doc(db, 'grades', grade.id), sanitized);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `grades/${grade.id}`);
   }
@@ -337,7 +354,8 @@ export async function removeGradeFromFirestore(gradeId: string) {
 
 export async function syncSettingsToFirestore(settings: CenterSettings) {
   try {
-    await setDoc(doc(db, 'settings', 'main'), settings);
+    const sanitized = sanitizeForFirestore(settings);
+    await setDoc(doc(db, 'settings', 'main'), sanitized);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'settings/main');
   }
