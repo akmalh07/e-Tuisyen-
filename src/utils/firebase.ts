@@ -96,9 +96,17 @@ export async function testConnection() {
 }
 testConnection();
 
-// Seed initial data to Firestore if database is empty
+// Seed initial data to Firestore ONLY IF never cleared by user
 export async function seedInitialFirestoreData() {
   try {
+    const settingsSnap = await getDocs(collection(db, 'settings'));
+    if (!settingsSnap.empty) {
+      const settingsData = settingsSnap.docs[0].data();
+      if (settingsData && settingsData.isSampleDataCleared) {
+        return; // User explicitly cleared sample data!
+      }
+    }
+
     const studentsSnap = await getDocs(collection(db, 'students'));
     if (!studentsSnap.empty) {
       return; // Already populated
@@ -108,7 +116,7 @@ export async function seedInitialFirestoreData() {
     const batch = writeBatch(db);
 
     // Settings
-    batch.set(doc(db, 'settings', 'main'), initialSettings);
+    batch.set(doc(db, 'settings', 'main'), { ...initialSettings, isSampleDataCleared: false });
 
     // Students
     initialStudents.forEach(s => {
@@ -142,11 +150,44 @@ export async function seedInitialFirestoreData() {
   }
 }
 
+// Clear all sample data completely from Firestore
+export async function clearAllFirestoreData() {
+  try {
+    console.log('Clearing all sample data from Firestore...');
+    const collections = ['students', 'classes', 'payments', 'attendance', 'grades'];
+    
+    for (const colName of collections) {
+      const snap = await getDocs(collection(db, colName));
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // Keep center settings structure but mark as sample data cleared
+    await setDoc(doc(db, 'settings', 'main'), {
+      ...initialSettings,
+      isSampleDataCleared: true
+    });
+
+    // Also clear localStorage
+    localStorage.removeItem('tuition_center_app_state');
+    localStorage.setItem('tuition_center_sample_cleared', 'true');
+    console.log('All sample data cleared successfully!');
+  } catch (err) {
+    console.error('Error clearing Firestore sample data:', err);
+  }
+}
+
+// Execute initial wipe right away as requested by user
+clearAllFirestoreData();
+
 // Real-time listener subscriber across all 6 collections
 export function subscribeToRealtimeAppState(
   onUpdate: (data: Partial<AppStateData>) => void
 ) {
-  // Ensure initial seed is done if empty
+  // Ensure initial seed check
   seedInitialFirestoreData();
 
   const unsubSettings = onSnapshot(
@@ -155,6 +196,8 @@ export function subscribeToRealtimeAppState(
       if (!snapshot.empty) {
         const docData = snapshot.docs[0].data() as CenterSettings;
         onUpdate({ settings: docData });
+      } else {
+        onUpdate({ settings: initialSettings });
       }
     },
     (err) => handleFirestoreError(err, OperationType.LIST, 'settings')
@@ -305,9 +348,11 @@ export async function resetFirestoreToSampleData() {
     const collections = ['students', 'classes', 'payments', 'attendance', 'grades', 'settings'];
     for (const colName of collections) {
       const snap = await getDocs(collection(db, colName));
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
     }
     await seedInitialFirestoreData();
   } catch (err) {

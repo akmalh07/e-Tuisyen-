@@ -21,6 +21,7 @@ interface CenterSettingsModalProps {
   onExportBackup: () => void;
   onRestoreBackup: (restoredData: AppStateData) => void;
   onResetSampleData: () => void;
+  onClearAllData?: () => void;
 }
 
 export const CenterSettingsModal: React.FC<CenterSettingsModalProps> = ({
@@ -29,7 +30,8 @@ export const CenterSettingsModal: React.FC<CenterSettingsModalProps> = ({
   onClose,
   onExportBackup,
   onRestoreBackup,
-  onResetSampleData
+  onResetSampleData,
+  onClearAllData
 }) => {
   const [formData, setFormData] = useState<CenterSettings>({ ...settings });
   const [activeTab, setActiveTab] = useState<'profile' | 'bank' | 'backup'>('profile');
@@ -330,24 +332,38 @@ export const CenterSettingsModal: React.FC<CenterSettingsModalProps> = ({
               <div className="p-4 bg-rose-50/60 rounded-xl border border-rose-200 space-y-2">
                 <span className="font-bold text-rose-900 block text-xs flex items-center gap-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                  3. Tetapkan Semula Data Contoh
+                  3. Pengurusan & Kosongkan Data
                 </span>
                 <p className="text-rose-700 text-[11px] leading-relaxed">
-                  Memadamkan rekod semasa dan memuatkan semula set data contoh asal (pelajar Tingkatan 5, jadual, dan yuran asas).
+                  Kosongkan pangkalan data untuk memasukkan rekod pelajar, kelas, dan yuran anda sendiri dari kosong, atau muatkan semula data contoh.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm('Adakah anda pasti ingin menetapkan semula semua data kepada data contoh asal? Tindakan ini akan menggantikan rekod semasa.')) {
-                      onResetSampleData();
-                      onClose();
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-semibold"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Tetapkan Semula ke Data Contoh
-                </button>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Adakah anda pasti ingin MEMADAM SEMUA DATA (pelajar, kelas, yuran, kehadiran) untuk mula memasukkan data anda dari kosong?')) {
+                        if (onClearAllData) onClearAllData();
+                        onClose();
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-semibold shadow-xs"
+                  >
+                    Kosongkan Semua Data Contoh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Adakah anda pasti ingin menetapkan semula kepada data contoh asal?')) {
+                        onResetSampleData();
+                        onClose();
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Muat Semula Data Contoh
+                  </button>
+                </div>
               </div>
             </div>
           )}

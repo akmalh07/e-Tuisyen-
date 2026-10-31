@@ -35,7 +35,8 @@ import {
   syncGradeToFirestore,
   removeGradeFromFirestore,
   syncSettingsToFirestore,
-  resetFirestoreToSampleData
+  resetFirestoreToSampleData,
+  clearAllFirestoreData
 } from './utils/firebase';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -209,6 +210,11 @@ export default function App() {
     showToast('Semua rekod telah ditetapkan semula ke data contoh (Cloud).');
   };
 
+  const handleClearAllData = async () => {
+    await clearAllFirestoreData();
+    showToast('Semua data contoh telah dipadam. Anda boleh mula memasukkan data sendiri!');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-indigo-50/50 to-blue-50/80 text-slate-800 flex flex-col font-sans relative overflow-x-hidden">
       
@@ -362,6 +368,7 @@ export default function App() {
           onExportBackup={handleExportBackup}
           onRestoreBackup={handleRestoreBackup}
           onResetSampleData={handleResetSampleData}
+          onClearAllData={handleClearAllData}
         />
       )}
 
