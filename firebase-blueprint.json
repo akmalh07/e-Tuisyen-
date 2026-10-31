@@ -1,0 +1,145 @@
+{
+  "entities": {
+    "CenterSettings": {
+      "title": "CenterSettings",
+      "description": "Pengaturan maklumat pusat tuisyen",
+      "type": "object",
+      "properties": {
+        "centerName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "registrationNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "bankName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "accountHolder": { "type": "string" },
+        "receiptPrefix": { "type": "string" },
+        "currency": { "type": "string" },
+        "principalName": { "type": "string" }
+      },
+      "required": ["centerName", "phone", "bankName", "accountNumber"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Maklumat profil dan status pendaftaran pelajar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "icOrMyKid": { "type": "string" },
+        "level": { "type": "string" },
+        "school": { "type": "string" },
+        "parentName": { "type": "string" },
+        "parentPhone": { "type": "string" },
+        "parentEmail": { "type": "string" },
+        "registeredClassIds": {
+          "type": "array"
+        },
+        "monthlyFee": { "type": "number" },
+        "registrationDate": { "type": "string" },
+        "exitDate": { "type": "string" },
+        "exitReason": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "name", "level", "parentName", "parentPhone", "status"]
+    },
+    "ClassSession": {
+      "title": "ClassSession",
+      "description": "Sesi kelas tuisyen dan jadual waktu",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "level": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "tutorName": { "type": "string" },
+        "room": { "type": "string" },
+        "feePerMonth": { "type": "number" },
+        "maxCapacity": { "type": "number" }
+      },
+      "required": ["id", "subject", "level", "dayOfWeek", "tutorName"]
+    },
+    "PaymentRecord": {
+      "title": "PaymentRecord",
+      "description": "Rekod bayaran dan invois yuran bulanan pelajar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "studentId": { "type": "string" },
+        "month": { "type": "string" },
+        "amountDue": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "paymentDate": { "type": "string" },
+        "status": { "type": "string" },
+        "referenceNo": { "type": "string" },
+        "receivedBy": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "receiptNumber", "studentId", "month", "amountDue", "amountPaid", "status"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Rekod kehadiran kelas harian pelajar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "classId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "date", "classId", "studentId", "status"]
+    },
+    "GradeRecord": {
+      "title": "GradeRecord",
+      "description": "Rekod markah dan gred ujian pelajar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "subject": { "type": "string" },
+        "examName": { "type": "string" },
+        "marks": { "type": "number" },
+        "maxMarks": { "type": "number" },
+        "grade": { "type": "string" },
+        "tutorFeedback": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "studentId", "subject", "examName", "marks", "grade"]
+    }
+  },
+  "firestore": {
+    "/settings/{settingsId}": {
+      "schema": { "$ref": "#/entities/CenterSettings" },
+      "description": "Tetapan pusat tuisyen"
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Koleksi data pelajar"
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/ClassSession" },
+      "description": "Koleksi data kelas tuisyen"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/PaymentRecord" },
+      "description": "Koleksi rekod bayaran yuran"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Koleksi rekod kehadiran"
+    },
+    "/grades/{gradeId}": {
+      "schema": { "$ref": "#/entities/GradeRecord" },
+      "description": "Koleksi rekod markah dan keputusan ujian"
+    }
+  }
+}

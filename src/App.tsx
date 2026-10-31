@@ -23,7 +23,21 @@ import {
   resetAllToSampleData, 
   AppStateData 
 } from './utils/storage';
-import { CheckCircle2, Info } from 'lucide-react';
+import { 
+  subscribeToRealtimeAppState,
+  syncStudentToFirestore,
+  removeStudentFromFirestore,
+  syncClassToFirestore,
+  removeClassFromFirestore,
+  syncPaymentToFirestore,
+  removePaymentFromFirestore,
+  syncAttendanceListToFirestore,
+  syncGradeToFirestore,
+  removeGradeFromFirestore,
+  syncSettingsToFirestore,
+  resetFirestoreToSampleData
+} from './utils/firebase';
+import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   // Application Central State
@@ -46,28 +60,37 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Auto-save state to localStorage on state changes
+  // Real-time Cloud Firestore synchronization across all devices
+  useEffect(() => {
+    const unsubscribe = subscribeToRealtimeAppState((partialData) => {
+      setAppState(prev => ({
+        ...prev,
+        ...partialData
+      }));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Save state to localStorage as secondary offline cache
   useEffect(() => {
     saveAppState(appState);
   }, [appState]);
 
   // Handlers: Student
-  const handleAddStudent = (newStudentData: Omit<Student, 'id'>) => {
+  const handleAddStudent = async (newStudentData: Omit<Student, 'id'>) => {
     const newId = `std-${Date.now()}`;
     const newStudent: Student = {
       ...newStudentData,
       id: newId
     };
 
-    // Auto generate first payment record for the student's registration month (NOT hardcoded)
     const regMonth = newStudent.registrationDate && newStudent.registrationDate.length >= 7
       ? newStudent.registrationDate.substring(0, 7)
       : new Date().toISOString().substring(0, 7);
 
-    let updatedPayments = [...appState.payments];
     if (newStudent.monthlyFee > 0) {
       const receiptNo = `${appState.settings.receiptPrefix}-${String(appState.payments.length + 1).padStart(4, '0')}`;
-      updatedPayments.push({
+      const newPayment: PaymentRecord = {
         id: `pay-${Date.now()}`,
         receiptNumber: receiptNo,
         studentId: newId,
@@ -78,72 +101,48 @@ export default function App() {
         status: 'unpaid',
         receivedBy: appState.settings.principalName,
         notes: `Invois pendaftaran bulan mula masuk (${regMonth})`
-      });
+      };
+      await syncPaymentToFirestore(newPayment);
     }
 
-    setAppState(prev => ({
-      ...prev,
-      students: [newStudent, ...prev.students],
-      payments: updatedPayments
-    }));
-    showToast(`Pelajar ${newStudent.name} berjaya didaftarkan!`);
+    await syncStudentToFirestore(newStudent);
+    showToast(`Pelajar ${newStudent.name} berjaya didaftarkan! (Segera disegerakkan)`);
   };
 
-  const handleUpdateStudent = (updatedStudent: Student) => {
-    setAppState(prev => ({
-      ...prev,
-      students: prev.students.map(s => s.id === updatedStudent.id ? updatedStudent : s)
-    }));
+  const handleUpdateStudent = async (updatedStudent: Student) => {
+    await syncStudentToFirestore(updatedStudent);
     showToast(`Maklumat ${updatedStudent.name} telah dikemaskini.`);
   };
 
-  const handleDeleteStudent = (id: string) => {
-    setAppState(prev => ({
-      ...prev,
-      students: prev.students.filter(s => s.id !== id),
-      payments: prev.payments.filter(p => p.studentId !== id),
-      attendance: prev.attendance.filter(a => a.studentId !== id),
-      grades: prev.grades.filter(g => g.studentId !== id)
-    }));
-    showToast('Rekod pelajar dan data berkaitan telah dipadam.');
+  const handleDeleteStudent = async (id: string) => {
+    await removeStudentFromFirestore(id);
+    showToast('Rekod pelajar telah dipadam dari cloud.');
   };
 
   // Handlers: Class Session
-  const handleAddClass = (newClassData: Omit<ClassSession, 'id'>) => {
+  const handleAddClass = async (newClassData: Omit<ClassSession, 'id'>) => {
     const newClass: ClassSession = {
       ...newClassData,
       id: `cls-${Date.now()}`
     };
-    setAppState(prev => ({
-      ...prev,
-      classes: [...prev.classes, newClass]
-    }));
+    await syncClassToFirestore(newClass);
     showToast(`Sesi kelas ${newClass.subject} berjaya ditambah.`);
   };
 
-  const handleUpdateClass = (updatedClass: ClassSession) => {
-    setAppState(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => c.id === updatedClass.id ? updatedClass : c)
-    }));
+  const handleUpdateClass = async (updatedClass: ClassSession) => {
+    await syncClassToFirestore(updatedClass);
     showToast(`Jadual kelas ${updatedClass.subject} dikemaskini.`);
   };
 
-  const handleDeleteClass = (id: string) => {
-    setAppState(prev => ({
-      ...prev,
-      classes: prev.classes.filter(c => c.id !== id)
-    }));
+  const handleDeleteClass = async (id: string) => {
+    await removeClassFromFirestore(id);
     showToast('Sesi kelas telah dipadam dari jadual.');
   };
 
   // Handlers: Attendance
-  const handleSaveAttendance = (newAttendanceList: AttendanceRecord[]) => {
-    setAppState(prev => ({
-      ...prev,
-      attendance: newAttendanceList
-    }));
-    showToast('Rekod kehadiran sesi berjaya disimpan.');
+  const handleSaveAttendance = async (newAttendanceList: AttendanceRecord[]) => {
+    await syncAttendanceListToFirestore(newAttendanceList);
+    showToast('Rekod kehadiran sesi berjaya disimpan ke cloud.');
   };
 
   const handleTriggerTakeAttendance = (classId: string) => {
@@ -152,30 +151,21 @@ export default function App() {
   };
 
   // Handlers: Payments
-  const handleUpdatePayment = (updatedPayment: PaymentRecord) => {
-    setAppState(prev => ({
-      ...prev,
-      payments: prev.payments.map(p => p.id === updatedPayment.id ? updatedPayment : p)
-    }));
+  const handleUpdatePayment = async (updatedPayment: PaymentRecord) => {
+    await syncPaymentToFirestore(updatedPayment);
     showToast(`Bayaran resit ${updatedPayment.receiptNumber} berjaya direkod.`);
   };
 
-  const handleAddPayment = (newPaymentData: Omit<PaymentRecord, 'id'>) => {
+  const handleAddPayment = async (newPaymentData: Omit<PaymentRecord, 'id'>) => {
     const newPayment: PaymentRecord = {
       ...newPaymentData,
       id: `pay-${Date.now()}`
     };
-    setAppState(prev => ({
-      ...prev,
-      payments: [newPayment, ...prev.payments]
-    }));
+    await syncPaymentToFirestore(newPayment);
   };
 
-  const handleDeletePayment = (paymentId: string) => {
-    setAppState(prev => ({
-      ...prev,
-      payments: prev.payments.filter(p => p.id !== paymentId)
-    }));
+  const handleDeletePayment = async (paymentId: string) => {
+    await removePaymentFromFirestore(paymentId);
     showToast('Rekod invois bayaran telah dipadam.');
   };
 
@@ -184,32 +174,24 @@ export default function App() {
   };
 
   // Handlers: Grades
-  const handleAddGrade = (newGradeData: Omit<GradeRecord, 'id'>) => {
+  const handleAddGrade = async (newGradeData: Omit<GradeRecord, 'id'>) => {
     const newGrade: GradeRecord = {
       ...newGradeData,
       id: `grd-${Date.now()}`
     };
-    setAppState(prev => ({
-      ...prev,
-      grades: [newGrade, ...prev.grades]
-    }));
+    await syncGradeToFirestore(newGrade);
     showToast('Rekod markah ujian berjaya disimpan.');
   };
 
-  const handleDeleteGrade = (id: string) => {
-    setAppState(prev => ({
-      ...prev,
-      grades: prev.grades.filter(g => g.id !== id)
-    }));
+  const handleDeleteGrade = async (id: string) => {
+    await removeGradeFromFirestore(id);
     showToast('Rekod markah telah dipadam.');
   };
 
   // Handlers: Center Settings & Backup
-  const handleSaveSettings = (newSettings: CenterSettings) => {
-    setAppState(prev => ({
-      ...prev,
-      settings: newSettings
-    }));
+  const handleSaveSettings = async (newSettings: CenterSettings) => {
+    await syncSettingsToFirestore(newSettings);
+    showToast('Tetapan pusat tuisyen dikemaskini secara masa nyata.');
   };
 
   const handleExportBackup = () => {
@@ -219,13 +201,12 @@ export default function App() {
 
   const handleRestoreBackup = (restoredData: AppStateData) => {
     setAppState(restoredData);
-    showToast('Data sistem berjaya dipulihkan sepenuhnya.');
+    showToast('Data sistem berjaya dipulihkan.');
   };
 
-  const handleResetSampleData = () => {
-    const samples = resetAllToSampleData();
-    setAppState(samples);
-    showToast('Semua rekod telah ditetapkan semula ke data contoh.');
+  const handleResetSampleData = async () => {
+    await resetFirestoreToSampleData();
+    showToast('Semua rekod telah ditetapkan semula ke data contoh (Cloud).');
   };
 
   return (
@@ -335,13 +316,17 @@ export default function App() {
 
       </main>
 
-      {/* Glassy Footer */}
+      {/* Glassy Footer with Real-time Sync Indicator */}
       <footer className="no-print relative z-10 glass-panel border-t border-white/60 py-6 text-xs text-slate-500 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-800 font-heading">e-Tuisyen Pintar</span>
             <span>·</span>
             <span className="text-slate-600 font-medium">{appState.settings.centerName}</span>
+            <span className="ml-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-500/10 text-emerald-700 rounded-full border border-emerald-300/60 font-semibold text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Awan Masa Nyata (Real-time Cloud Sync)
+            </span>
           </div>
           <div className="flex items-center gap-4 text-slate-500 font-medium">
             <span>Pendaftaran</span>
