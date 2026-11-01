@@ -40,6 +40,8 @@ import {
 } from './utils/firebase';
 import { CheckCircle2 } from 'lucide-react';
 
+import { formatMonthNameMalay } from './utils/whatsapp';
+
 export default function App() {
   // Application Central State
   const [appState, setAppState] = useState<AppStateData>(() => loadAppState());
@@ -76,6 +78,43 @@ export default function App() {
   useEffect(() => {
     saveAppState(appState);
   }, [appState]);
+
+  // Auto-generate current calendar month fee bills for active students (e.g. 1st November)
+  useEffect(() => {
+    if (appState.students.length === 0) return;
+    const currentCalendarMonth = new Date().toISOString().substring(0, 7);
+
+    const activeStudents = appState.students.filter(student => {
+      if (student.monthlyFee <= 0 || student.status !== 'active') return false;
+      const regMonth = student.registrationDate && student.registrationDate.length >= 7 
+        ? student.registrationDate.substring(0, 7) 
+        : currentCalendarMonth;
+      return regMonth <= currentCalendarMonth;
+    });
+
+    const missingBills = activeStudents.filter(student => {
+      return !appState.payments.some(p => p.studentId === student.id && p.month === currentCalendarMonth);
+    });
+
+    if (missingBills.length > 0) {
+      missingBills.forEach(async (student, idx) => {
+        const nextReceiptNum = `${appState.settings.receiptPrefix}-${String(appState.payments.length + idx + 1).padStart(4, '0')}`;
+        const newPayment: PaymentRecord = {
+          id: `pay-${currentCalendarMonth}-${student.id}`,
+          receiptNumber: nextReceiptNum,
+          studentId: student.id,
+          month: currentCalendarMonth,
+          amountDue: student.monthlyFee,
+          amountPaid: 0,
+          paymentMethod: 'DuitNow / Bank Transfer',
+          status: 'unpaid',
+          receivedBy: appState.settings.principalName,
+          notes: `Invois yuran bulanan (${formatMonthNameMalay(currentCalendarMonth)})`
+        };
+        await syncPaymentToFirestore(newPayment);
+      });
+    }
+  }, [appState.students, appState.payments, appState.settings]);
 
   // Handlers: Student
   const handleAddStudent = async (newStudentData: Omit<Student, 'id'>) => {
