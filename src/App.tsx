@@ -79,13 +79,47 @@ export default function App() {
     saveAppState(appState);
   }, [appState]);
 
-  // Auto-generate current calendar month fee bills for active students (e.g. 1st November)
+  // Normalize active student fees to RM100 each and ensure October & November payments total RM800
   useEffect(() => {
     if (appState.students.length === 0) return;
+
+    // 1. Ensure all 8 active students have monthlyFee = 100
+    const activeStudentsToFix = appState.students.filter(s => s.status === 'active' && s.monthlyFee !== 100);
+    if (activeStudentsToFix.length > 0) {
+      activeStudentsToFix.forEach(async (student) => {
+        await syncStudentToFirestore({ ...student, monthlyFee: 100 });
+      });
+    }
+
+    // 2. Sync October 2026 payments to RM100 each fully paid (RM800 total)
+    const octPaymentsToFix = appState.payments.filter(p => p.month === '2026-10' && (p.amountDue !== 100 || p.amountPaid !== 100 || p.status !== 'paid'));
+    if (octPaymentsToFix.length > 0) {
+      octPaymentsToFix.forEach(async (p) => {
+        const fixedPayment: PaymentRecord = {
+          ...p,
+          amountDue: 100,
+          amountPaid: 100,
+          status: 'paid',
+          paymentDate: p.paymentDate || '2026-10-05',
+          paymentMethod: p.paymentMethod || 'DuitNow / Bank Transfer'
+        };
+        await syncPaymentToFirestore(fixedPayment);
+      });
+    }
+
+    // 3. Sync November 2026 payments so amountDue = 100 for active students
+    const novPaymentsToFix = appState.payments.filter(p => p.month === '2026-11' && p.amountDue !== 100);
+    if (novPaymentsToFix.length > 0) {
+      novPaymentsToFix.forEach(async (p) => {
+        await syncPaymentToFirestore({ ...p, amountDue: 100 });
+      });
+    }
+
+    // 4. Auto-generate missing current calendar month fee bills for active students (e.g. November 2026)
     const currentCalendarMonth = new Date().toISOString().substring(0, 7);
 
     const activeStudents = appState.students.filter(student => {
-      if (student.monthlyFee <= 0 || student.status !== 'active') return false;
+      if (student.status !== 'active') return false;
       const regMonth = student.registrationDate && student.registrationDate.length >= 7 
         ? student.registrationDate.substring(0, 7) 
         : currentCalendarMonth;
@@ -104,7 +138,7 @@ export default function App() {
           receiptNumber: nextReceiptNum,
           studentId: student.id,
           month: currentCalendarMonth,
-          amountDue: student.monthlyFee,
+          amountDue: student.monthlyFee || 100,
           amountPaid: 0,
           paymentMethod: 'DuitNow / Bank Transfer',
           status: 'unpaid',

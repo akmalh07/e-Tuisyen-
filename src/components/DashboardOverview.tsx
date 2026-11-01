@@ -63,12 +63,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const activeStudents = students.filter(s => s.status === 'active');
   const activeStudentIds = new Set(activeStudents.map(s => s.id));
 
-  // Determine current active month (prefer real current month, or latest month in payments)
-  const currentMonth = React.useMemo(() => {
-    const paymentMonths = Array.from(new Set(payments.map(p => p.month))).sort();
-    if (paymentMonths.includes(todayMonth)) return todayMonth;
-    return paymentMonths.length > 0 ? paymentMonths[paymentMonths.length - 1] : todayMonth;
+  // Available months list for selector
+  const availableMonths = React.useMemo(() => {
+    const setMonths = new Set(payments.map(p => p.month));
+    setMonths.add('2026-10');
+    setMonths.add(todayMonth);
+    return Array.from(setMonths).sort().reverse();
   }, [payments, todayMonth]);
+
+  // Selected dashboard view month (defaults to '2026-10')
+  const [selectedMonth, setSelectedMonth] = React.useState<string>('2026-10');
+
+  const currentMonth = availableMonths.includes(selectedMonth) ? selectedMonth : '2026-10';
 
   // Month payment statistics strictly for active registered students
   const currentMonthPayments = payments.filter(
@@ -148,6 +154,29 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <Receipt className="w-4 h-4" />
             Semak Yuran
           </button>
+        </div>
+      </div>
+
+      {/* Month Filter Banner for Dashboard Financial KPI */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/90 backdrop-blur-md p-3.5 px-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-blue-700" />
+          <span className="text-xs font-bold text-slate-800">
+            Paparan Statistik Yuran Bagi Bulan:
+          </span>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="w-full sm:w-auto text-xs font-bold text-slate-900 bg-slate-100 hover:bg-slate-200/80 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-colors shadow-2xs"
+          >
+            {availableMonths.map(m => (
+              <option key={m} value={m}>
+                {formatMonthNameMalay(m)}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
