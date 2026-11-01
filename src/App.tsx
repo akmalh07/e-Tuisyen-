@@ -116,8 +116,12 @@ export default function App() {
   };
 
   const handleDeleteStudent = async (id: string) => {
+    const relatedPayments = appState.payments.filter(p => p.studentId === id);
+    for (const p of relatedPayments) {
+      await removePaymentFromFirestore(p.id);
+    }
     await removeStudentFromFirestore(id);
-    showToast('Rekod pelajar telah dipadam dari cloud.');
+    showToast('Rekod pelajar dan invois berkaitan telah dipadam.');
   };
 
   // Handlers: Class Session

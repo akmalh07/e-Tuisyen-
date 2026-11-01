@@ -45,7 +45,14 @@ export const FeeBillingHub: React.FC<FeeBillingHubProps> = ({
   onDeletePayment,
   onViewReceipt
 }) => {
-  const [selectedMonth, setSelectedMonth] = useState<string>('2026-10');
+  const todayMonth = new Date().toISOString().substring(0, 7);
+  const availableMonths = React.useMemo(() => {
+    const monthsSet = new Set(payments.map(p => p.month));
+    monthsSet.add(todayMonth);
+    return Array.from(monthsSet).sort().reverse();
+  }, [payments, todayMonth]);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => availableMonths[0] || todayMonth);
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -350,11 +357,11 @@ export const FeeBillingHub: React.FC<FeeBillingHubProps> = ({
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="text-xs border border-white/80 rounded-xl px-3 py-1.5 bg-white/70 backdrop-blur-md text-slate-800 font-medium focus:ring-2 focus:ring-blue-600/40 focus:outline-hidden"
           >
-            <option value="2026-10">Oktober 2026</option>
-            <option value="2026-09">September 2026</option>
-            <option value="2026-11">November 2026</option>
-            <option value="2026-12">Disember 2026</option>
-            <option value="2026-08">Ogos 2026</option>
+            {availableMonths.map(m => (
+              <option key={m} value={m}>
+                {formatMonthNameMalay(m)}
+              </option>
+            ))}
           </select>
         </div>
 

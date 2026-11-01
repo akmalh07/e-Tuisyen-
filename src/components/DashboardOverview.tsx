@@ -52,8 +52,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   onTakeAttendance,
   onViewReceipt
 }) => {
-  const currentMonth = '2026-10';
   const todayDateStr = new Date().toISOString().split('T')[0];
+  const todayMonth = todayDateStr.substring(0, 7);
 
   // Map English getDay() to Malay DayOfWeek
   const dayNames: DayOfWeek[] = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
@@ -61,9 +61,19 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   // Active students
   const activeStudents = students.filter(s => s.status === 'active');
+  const activeStudentIds = new Set(activeStudents.map(s => s.id));
 
-  // Month payment statistics
-  const currentMonthPayments = payments.filter(p => p.month === currentMonth);
+  // Determine current active month (prefer real current month, or latest month in payments)
+  const currentMonth = React.useMemo(() => {
+    const paymentMonths = Array.from(new Set(payments.map(p => p.month))).sort();
+    if (paymentMonths.includes(todayMonth)) return todayMonth;
+    return paymentMonths.length > 0 ? paymentMonths[paymentMonths.length - 1] : todayMonth;
+  }, [payments, todayMonth]);
+
+  // Month payment statistics strictly for active registered students
+  const currentMonthPayments = payments.filter(
+    p => activeStudentIds.has(p.studentId) && p.month === currentMonth
+  );
   const totalDue = currentMonthPayments.reduce((sum, p) => sum + p.amountDue, 0);
   const totalCollected = currentMonthPayments.reduce((sum, p) => sum + p.amountPaid, 0);
   const totalUnpaid = Math.max(0, totalDue - totalCollected);
