@@ -85,4 +85,5 @@ export interface CenterSettings {
   receiptPrefix: string;
   currency: string;
   principalName: string;
+  isSampleDataCleared?: boolean;
 }

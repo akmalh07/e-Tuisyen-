@@ -166,11 +166,11 @@ export async function seedInitialFirestoreData() {
   }
 }
 
-// Clear all sample data completely from Firestore (triggered on demand by user)
+// Clear all sample student, payment, attendance, and grade data completely from Firestore
 export async function clearAllFirestoreData() {
   try {
-    console.log('Clearing all sample data from Firestore...');
-    const collections = ['students', 'classes', 'payments', 'attendance', 'grades'];
+    console.log('Clearing all sample student, payment, attendance, and grade data from Firestore...');
+    const collections = ['students', 'payments', 'attendance', 'grades'];
     
     for (const colName of collections) {
       const snap = await getDocs(collection(db, colName));
@@ -181,16 +181,29 @@ export async function clearAllFirestoreData() {
       }
     }
 
-    // Keep center settings structure but mark as sample data cleared
+    // Ensure default classes exist if empty so user has tuition schedule templates
+    const classesSnap = await getDocs(collection(db, 'classes'));
+    if (classesSnap.empty) {
+      const classBatch = writeBatch(db);
+      initialClasses.forEach(c => {
+        classBatch.set(doc(db, 'classes', c.id), sanitizeForFirestore(c));
+      });
+      await classBatch.commit();
+    }
+
+    // Update settings in Firestore with isSampleDataCleared = true
     await setDoc(doc(db, 'settings', 'main'), sanitizeForFirestore({
       ...initialSettings,
       isSampleDataCleared: true
     }));
 
-    // Also clear localStorage
-    localStorage.removeItem('tuition_center_app_state');
+    // Update localStorage to reflect cleared state
+    localStorage.setItem('tuition_app_students', JSON.stringify([]));
+    localStorage.setItem('tuition_app_payments', JSON.stringify([]));
+    localStorage.setItem('tuition_app_attendance', JSON.stringify([]));
+    localStorage.setItem('tuition_app_grades', JSON.stringify([]));
     localStorage.setItem('tuition_center_sample_cleared', 'true');
-    console.log('All sample data cleared successfully!');
+    console.log('All sample student and payment data cleared successfully!');
   } catch (err) {
     console.error('Error clearing Firestore sample data:', err);
   }

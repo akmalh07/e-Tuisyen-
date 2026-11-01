@@ -79,65 +79,21 @@ export default function App() {
     saveAppState(appState);
   }, [appState]);
 
-  // Strictly enforce 8 registered students and 8 monthly invoices in Firestore
+  // One-time wipe of sample student data as explicitly requested by user
+  useEffect(() => {
+    // If sample data has not been marked as cleared, wipe it immediately
+    if (!appState.settings.isSampleDataCleared || appState.students.some(s => s.id === 'std-1' || s.id === 'std-2')) {
+      clearAllFirestoreData();
+    }
+  }, [appState.settings.isSampleDataCleared, appState.students]);
+
+  // Auto-generate current calendar month fee bills for active user-registered students
   useEffect(() => {
     if (appState.students.length === 0) return;
-
-    const ALLOWED_STUDENT_IDS = new Set(['std-1', 'std-2', 'std-3', 'std-4', 'std-5', 'std-6', 'std-8', 'std-9']);
-
-    // 1. Delete any student from Firestore that is NOT in the 8 allowed students
-    const invalidStudents = appState.students.filter(s => !ALLOWED_STUDENT_IDS.has(s.id));
-    if (invalidStudents.length > 0) {
-      invalidStudents.forEach(async (student) => {
-        await removeStudentFromFirestore(student.id);
-      });
-    }
-
-    // 2. Delete any payment from Firestore for students not in ALLOWED_STUDENT_IDS
-    const invalidPayments = appState.payments.filter(p => !ALLOWED_STUDENT_IDS.has(p.studentId));
-    if (invalidPayments.length > 0) {
-      invalidPayments.forEach(async (p) => {
-        await removePaymentFromFirestore(p.id);
-      });
-    }
-
-    // 3. Ensure all 8 allowed active students have monthlyFee = 100 and status = 'active'
-    const activeStudentsToFix = appState.students.filter(s => ALLOWED_STUDENT_IDS.has(s.id) && (s.monthlyFee !== 100 || s.status !== 'active'));
-    if (activeStudentsToFix.length > 0) {
-      activeStudentsToFix.forEach(async (student) => {
-        await syncStudentToFirestore({ ...student, monthlyFee: 100, status: 'active' });
-      });
-    }
-
-    // 4. Ensure October 2026 payments in Firestore total exactly RM800 (8 payments x RM100, 100% paid)
-    const octPaymentsToFix = appState.payments.filter(p => p.month === '2026-10' && ALLOWED_STUDENT_IDS.has(p.studentId) && (p.amountDue !== 100 || p.amountPaid !== 100 || p.status !== 'paid'));
-    if (octPaymentsToFix.length > 0) {
-      octPaymentsToFix.forEach(async (p) => {
-        const fixedPayment: PaymentRecord = {
-          ...p,
-          amountDue: 100,
-          amountPaid: 100,
-          status: 'paid',
-          paymentDate: p.paymentDate || '2026-10-05',
-          paymentMethod: p.paymentMethod || 'DuitNow / Bank Transfer'
-        };
-        await syncPaymentToFirestore(fixedPayment);
-      });
-    }
-
-    // 5. Ensure November 2026 payments in Firestore total exactly RM800 (8 payments x RM100 due)
-    const novPaymentsToFix = appState.payments.filter(p => p.month === '2026-11' && ALLOWED_STUDENT_IDS.has(p.studentId) && p.amountDue !== 100);
-    if (novPaymentsToFix.length > 0) {
-      novPaymentsToFix.forEach(async (p) => {
-        await syncPaymentToFirestore({ ...p, amountDue: 100 });
-      });
-    }
-
-    // 4. Auto-generate missing current calendar month fee bills for active students (e.g. November 2026)
     const currentCalendarMonth = new Date().toISOString().substring(0, 7);
 
     const activeStudents = appState.students.filter(student => {
-      if (student.status !== 'active') return false;
+      if (student.monthlyFee <= 0 || student.status !== 'active') return false;
       const regMonth = student.registrationDate && student.registrationDate.length >= 7 
         ? student.registrationDate.substring(0, 7) 
         : currentCalendarMonth;
@@ -156,7 +112,7 @@ export default function App() {
           receiptNumber: nextReceiptNum,
           studentId: student.id,
           month: currentCalendarMonth,
-          amountDue: student.monthlyFee || 100,
+          amountDue: student.monthlyFee,
           amountPaid: 0,
           paymentMethod: 'DuitNow / Bank Transfer',
           status: 'unpaid',
