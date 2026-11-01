@@ -79,31 +79,38 @@ export default function App() {
     saveAppState(appState);
   }, [appState]);
 
-  // Normalize active student fees to RM100 each and ensure October & November payments total RM800
+  // Strictly enforce 8 registered students and 8 monthly invoices in Firestore
   useEffect(() => {
     if (appState.students.length === 0) return;
 
-    // 0. Purge std-7 (Adam Luqman) so total registered students is strictly 8
-    if (appState.students.some(s => s.id === 'std-7')) {
-      removeStudentFromFirestore('std-7');
+    const ALLOWED_STUDENT_IDS = new Set(['std-1', 'std-2', 'std-3', 'std-4', 'std-5', 'std-6', 'std-8', 'std-9']);
+
+    // 1. Delete any student from Firestore that is NOT in the 8 allowed students
+    const invalidStudents = appState.students.filter(s => !ALLOWED_STUDENT_IDS.has(s.id));
+    if (invalidStudents.length > 0) {
+      invalidStudents.forEach(async (student) => {
+        await removeStudentFromFirestore(student.id);
+      });
     }
-    const std7Payments = appState.payments.filter(p => p.studentId === 'std-7');
-    if (std7Payments.length > 0) {
-      std7Payments.forEach(async (p) => {
+
+    // 2. Delete any payment from Firestore for students not in ALLOWED_STUDENT_IDS
+    const invalidPayments = appState.payments.filter(p => !ALLOWED_STUDENT_IDS.has(p.studentId));
+    if (invalidPayments.length > 0) {
+      invalidPayments.forEach(async (p) => {
         await removePaymentFromFirestore(p.id);
       });
     }
 
-    // 1. Ensure all 8 active students have monthlyFee = 100
-    const activeStudentsToFix = appState.students.filter(s => s.status === 'active' && s.monthlyFee !== 100);
+    // 3. Ensure all 8 allowed active students have monthlyFee = 100 and status = 'active'
+    const activeStudentsToFix = appState.students.filter(s => ALLOWED_STUDENT_IDS.has(s.id) && (s.monthlyFee !== 100 || s.status !== 'active'));
     if (activeStudentsToFix.length > 0) {
       activeStudentsToFix.forEach(async (student) => {
-        await syncStudentToFirestore({ ...student, monthlyFee: 100 });
+        await syncStudentToFirestore({ ...student, monthlyFee: 100, status: 'active' });
       });
     }
 
-    // 2. Sync October 2026 payments to RM100 each fully paid (RM800 total)
-    const octPaymentsToFix = appState.payments.filter(p => p.month === '2026-10' && (p.amountDue !== 100 || p.amountPaid !== 100 || p.status !== 'paid'));
+    // 4. Ensure October 2026 payments in Firestore total exactly RM800 (8 payments x RM100, 100% paid)
+    const octPaymentsToFix = appState.payments.filter(p => p.month === '2026-10' && ALLOWED_STUDENT_IDS.has(p.studentId) && (p.amountDue !== 100 || p.amountPaid !== 100 || p.status !== 'paid'));
     if (octPaymentsToFix.length > 0) {
       octPaymentsToFix.forEach(async (p) => {
         const fixedPayment: PaymentRecord = {
@@ -118,8 +125,8 @@ export default function App() {
       });
     }
 
-    // 3. Sync November 2026 payments so amountDue = 100 for active students
-    const novPaymentsToFix = appState.payments.filter(p => p.month === '2026-11' && p.amountDue !== 100);
+    // 5. Ensure November 2026 payments in Firestore total exactly RM800 (8 payments x RM100 due)
+    const novPaymentsToFix = appState.payments.filter(p => p.month === '2026-11' && ALLOWED_STUDENT_IDS.has(p.studentId) && p.amountDue !== 100);
     if (novPaymentsToFix.length > 0) {
       novPaymentsToFix.forEach(async (p) => {
         await syncPaymentToFirestore({ ...p, amountDue: 100 });
