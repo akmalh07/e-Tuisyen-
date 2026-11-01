@@ -243,20 +243,6 @@ export const initialStudents: Student[] = [
     registrationDate: '2026-02-20',
     status: 'active',
     notes: 'Tahap 1, perlukan bimbingan hafalan sifir dan operasi asas darab.'
-  },
-  {
-    id: 'std-7',
-    name: 'Adam Luqman bin Kamarul',
-    icOrMyKid: '090909-10-4433',
-    level: 'Tingkatan 5 (SPM)',
-    school: 'SMK Jalan Reko',
-    parentName: 'Puan Noraini Hashim',
-    parentPhone: '0183344556',
-    registeredClassIds: ['cls-1', 'cls-4'],
-    monthlyFee: 0,
-    registrationDate: '2026-04-01',
-    status: 'suspended',
-    notes: 'Cuti sementara 2 minggu kerana mewakili sekolah dalam sukan olahraga.'
   }
 ];
 

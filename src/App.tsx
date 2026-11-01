@@ -83,6 +83,17 @@ export default function App() {
   useEffect(() => {
     if (appState.students.length === 0) return;
 
+    // 0. Purge std-7 (Adam Luqman) so total registered students is strictly 8
+    if (appState.students.some(s => s.id === 'std-7')) {
+      removeStudentFromFirestore('std-7');
+    }
+    const std7Payments = appState.payments.filter(p => p.studentId === 'std-7');
+    if (std7Payments.length > 0) {
+      std7Payments.forEach(async (p) => {
+        await removePaymentFromFirestore(p.id);
+      });
+    }
+
     // 1. Ensure all 8 active students have monthlyFee = 100
     const activeStudentsToFix = appState.students.filter(s => s.status === 'active' && s.monthlyFee !== 100);
     if (activeStudentsToFix.length > 0) {
